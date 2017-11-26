@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import AnimationFrame
-import Html exposing (Html)
+import Html exposing (Html, div, text)
 import Html.Attributes exposing (width, height, style)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (vec3, Vec3)
@@ -11,30 +11,116 @@ import WebGL exposing (Mesh, Shader)
 
 {-|
 -}
-main : Program Never Time Time
+type Msg
+    = NoOp
+    | TimeFrame Time
+
+
+{-|
+-}
+type alias Model =
+    { t : Float
+    , deltat : Float
+    , sec : Int
+    , fps : Int
+    , fpsCount : Int
+    }
+
+
+initialModel : Model
+initialModel =
+    { t = 0
+    , deltat = 0
+    , sec = 0
+    , fps = 60
+    , fpsCount = 0
+    }
+
+
+{-|
+-}
+main : Program Never Model Msg
 main =
     Html.program
-        { init = ( 0, Cmd.none )
+        { init = init
         , view = view
-        , update = ( \elapsed currentTime -> ( elapsed + currentTime, Cmd.none ) )
-        , subscriptions = ( \model -> AnimationFrame.diffs Basics.identity )
+        , update = update
+        , subscriptions = subscriptions
         }
 
 
 {-|
 -}
-view : Float -> Html msg
-view t =
-    WebGL.toHtml
-        [ width 800
-        , height 600
-        , style [ ( "display", "block" ) ]
-        ]
-        [ WebGL.entity
-            vertexShader
-            fragmentShader
-            mesh
-            { perspective = perspective (t / 1000) }
+init : ( Model, Cmd Msg )
+init =
+    ( initialModel, Cmd.none )
+
+
+{-|
+-}
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
+        TimeFrame elapsed ->
+            let
+                secTmp =
+                    model.sec + (round elapsed)
+
+                sec =
+                    if secTmp < 1000 then secTmp else 0
+            in
+            ( { model
+                | t = model.t + elapsed
+                , deltat = elapsed
+                , sec = sec
+                , fps =
+                    if sec == 0 then model.fpsCount else model.fps
+                , fpsCount =
+                    if sec == 0 then 0 else model.fpsCount + 1
+                }
+            , Cmd.none
+            )
+
+
+{-|
+-}
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    AnimationFrame.diffs TimeFrame
+
+
+{-|
+-}
+view : Model -> Html Msg
+view model =
+    div []
+        [ div
+            [ style
+                [ ( "top", "0" )
+                , ( "left", "0" )
+                , ( "color", "#C00" )
+                , ( "padding", "20px" )
+                , ( "font-size", "18px" )
+                , ( "font-weight", "bold" )
+                , ( "position", "absolute" )
+                , ( "font-family", "Courier New" )
+                ]
+            ]
+            [ text ("FPS " ++ (toString model.fps)) ]
+        , WebGL.toHtml
+            [ width 800
+            , height 600
+            , style [ ( "display", "block" ) ]
+            ]
+            [ WebGL.entity
+                vertexShader
+                fragmentShader
+                mesh
+                { perspective = perspective (model.t / 1000) }
+            ]
         ]
 
 
