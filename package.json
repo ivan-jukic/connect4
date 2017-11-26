@@ -1,0 +1,25 @@
+{
+  "name": "connect4",
+  "version": "1.0.0",
+  "description": "conect4 for web",
+  "main": "index.js",
+  "dependencies": {
+    "koa": "^2.4.1",
+    "koa-morgan": "^1.0.1",
+    "koa-pug": "^3.0.0-2",
+    "koa-router": "^7.3.0",
+    "koa-static": "^4.0.2"
+  },
+  "devDependencies": {
+    "browser-sync": "^2.18.13",
+    "gulp": "^3.9.1",
+    "gulp-elm": "^0.7.2",
+    "gulp-nodemon": "^2.2.1",
+    "run-sequence": "^2.2.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ivan Jukic",
+  "license": "ISC"
+}
