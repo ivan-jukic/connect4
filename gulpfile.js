@@ -17,7 +17,6 @@ gulp.task('elm', ['elm-init'], () => {
 
 gulp.task('elm-watch', ['elm'], () => {
     browserSync.reload();
-    done();
 });
 
 /// START 
