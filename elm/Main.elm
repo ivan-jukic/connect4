@@ -26,8 +26,8 @@ main =
 view : Float -> Html msg
 view t =
     WebGL.toHtml
-        [ width 400
-        , height 400
+        [ width 800
+        , height 600
         , style [ ( "display", "block" ) ]
         ]
         [ WebGL.entity
