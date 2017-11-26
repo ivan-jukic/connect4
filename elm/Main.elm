@@ -28,7 +28,7 @@ view t =
     WebGL.toHtml
         [ width 400
         , height 400
-        , style [ ( "display", "blodk" ) ]
+        , style [ ( "display", "block" ) ]
         ]
         [ WebGL.entity
             vertexShader
