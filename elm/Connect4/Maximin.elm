@@ -1,116 +1,234 @@
-module Connect4.Maximin exposing (..)
+module Connect4.Maximin exposing (maximin)
 
 import Connect4.Models exposing (..)
+import Connect4.Board exposing (makeMove, checkWin)
+import Array exposing (Array)
+import Dict exposing (Dict)
 
 
-{-|  1  AI win
-     0  No winner
-    -1  Player win
--}
-maximin : Node -> Board -> Int
-maximin node board =
-    0
-
-
-{--
-
-    (cols - 1)
-        |> List.range 0 
-        |> List.filter (canAddToCol board)
-        |> List.map (\c -> (c, makeMove c node.current board))
-        |> List.filterMap toBoardTuple
-        |> List.map
-            (\(col, board) ->
-                let
-                    weight =
-                        node.maxDepth - node.depth + 1
-                in
-                case checkWin board of
-                    Just AI ->
-                        ( col, 1 * weight)
-
-                    Nothing ->
-                        if node.depth <= node.maxDepth then
-                            ( col
-                            , maximin
-                                { node
-                                    | current = node.next
-                                    , next = node.current
-                                    , depth = node.depth + 1
-                                }
-                                board
-                            )
-                        else
-                            ( col, 0 )
-
-                    _ ->
-                        ( col, -1 * weight)
-            )
-        |> maximinHandleResult node
-
-
-maximinHandleResult : Node -> List (Int, Int) -> Int
-maximinHandleResult node results =
-    case node.depth == 0 of
-        True ->
-            let
-                getMoves eval =
-                    results |> List.filterMap (\(col, res) -> if eval res then Just col else Nothing)
-
-                winMoves =
-                    getMoves (\r -> r > 0)
-
-                drawMoves =
-                    getMoves (\r -> r == 0)
-
-                _ = Debug.log "final moves" results
-            in
-            case (List.length winMoves > 0, List.length drawMoves > 0) of
-                (True,  _ ) ->
-                    minmaxSelectMove node.rand winMoves
-
-                (False, True) ->
-                    minmaxSelectMove node.rand drawMoves
-
-                _ ->
-                    results
-                        |> List.map Tuple.first
-                        |> minmaxSelectMove node.rand
-
-        False ->
-            results
-                |> List.map Tuple.second
-                |> (if node.current == AI then List.maximum else List.minimum)
-                |> Maybe.withDefault 0
-
-
-minmaxSelectMove : Int -> List Int -> Int
-minmaxSelectMove rand moves =
+maximin : Move -> Board -> Array Node
+maximin move board =
     let
-        idx =
-            rand % (List.length moves)
+        nextPlayer p =
+            if p == move.current then move.next else move.current
+
+        maxNodes =
+            countNodesByDepth move.maxDepth
+
+        emptyTree =
+            Array.initialize maxNodes (\_ -> defaultNode)
+
+        _ = Debug.log "len" (Array.length emptyTree)
     in
-    moves
-        |> Array.fromList
-        |> Array.get idx
-        |> Maybe.withDefault -1 -- basically some error happened
+    (move.maxDepth - 1)
+        |> List.range 0
+        |> List.foldl
+            (\depth (player, boards, tree) ->
+                let
+                    -- process nodes, returns tuple with parent id and its child nodes
+                    processedNodes =
+                        processBoards depth player boards                    
+
+                    -- update parents with their new child ids
+                    -- updatedTree =
+                    --    updateNodeChildren processedNodes tree
+
+                    -- Filter new nodes
+                    newNodes =
+                        processedNodes
+                            |> List.map Tuple.second
+                            |> List.concat
+
+                    -- Filter net new boards to be passed for further processing
+                    -- These nodes now become parent nodes in the next iteration
+                    newBoards =
+                        newNodes |> List.map (\node -> ( Just node.nodeId, node.board ))
+                in
+                ( nextPlayer player
+                , newBoards
+                , newNodes |> List.foldl (\n t-> Array.set (n.nodeId - 1) n t) tree -- add new nodes to the tree
+                )
+            )
+            ( move.current, [ ( Nothing, board ) ], emptyTree )
+        |> (\(_, _, tree) ->
+                {--
+                (move.maxDepth - 2)
+                    |> List.range 0
+                    |> List.foldr
+                        (\d t ->
+                            let
+                                
+                            in
+                            t
+                        )
+                        tree
+                    |> \_ -> tree
+                --}
+                tree
+        )
+    {-- }
+    ( move.maxDepth - 1 )
+        |> List.range 0
+        |> List.foldl
+            (\depth (player, boards, tree) ->
+                let
+                    -- process nodes, returns tuple with parent id and its child nodes
+                    processedNodes =
+                        processBoards depth player boards                    
+
+                    -- update parents with their new child ids
+                    updatedTree =
+                        updateNodeChildren processedNodes tree
+
+                    -- Filter new nodes
+                    newNodes =
+                        processedNodes
+                            |> List.map Tuple.second
+                            |> List.concat
+
+                    -- Filter net new boards to be passed for further processing
+                    -- These nodes now become parent nodes in the next iteration
+                    newBoards =
+                        newNodes |> List.map (\node -> ( Just node.nodeId, node.board ))
+                in
+                ( nextPlayer player
+                , newBoards
+                , newNodes
+                    |> Array.fromList
+                    |> Array.append updatedTree
+                )
+            )
+            ( move.current, [ ( Nothing, board ) ], Array.empty )
+        |> (\(_, _, tree) -> tree)
+    --}
+
+{-| Process boards, get their next states
+-}
+processBoards : Int -> Player -> List ( Maybe Int, Board ) -> List ( Maybe Int, List Node )
+processBoards depth player boards =
+    boards
+        |> List.map
+            (\( parentId, parentBoard ) ->
+                ( parentId
+                , parentBoard
+                    |> playPossibleMoves depth player parentId
+                )
+            )
 
 
-canAddToCol : Board -> Int -> Bool
-canAddToCol board col =
-    board
-        |> Array.get col
-        |> Maybe.map (\c -> Array.length c < rows)
-        |> Maybe.withDefault False
+{-| Play all possible moves for a node, create possible child nodes
+-}
+playPossibleMoves : Int -> Player -> Maybe Int -> Board -> List Node
+playPossibleMoves depth player parentId board =
+    let
+        -- calc node id depending on the depth and parent id
+        offsetIdx =
+            getNodeIndex depth parentId
+    in
+    (cols - 1)
+        |> List.range 0
+        |> List.map (maximinMove player board)
+        |> List.filterMap identity
+        |> List.map
+            (\(c, b) ->
+                { nodeId = offsetIdx + c
+                , player = player
+                , board = b
+                , win = checkWin player b
+                , depth = depth
+                , parentId = parentId
+                , childNodes = []
+                }
+            )
 
 
-toBoardTuple : (Int, Maybe Board) -> Maybe (Int, Board)
-toBoardTuple tuple =
-    case tuple of
-        ( col, Just board ) ->
-            Just (col, board )
-
+{-| Make move, return tuple of colum where the token was added
+    and the new board state. If the move failed, Nothing is
+    returned.
+-}
+maximinMove : Player -> Board -> Int -> Maybe (Int, Board)
+maximinMove player board col =
+    case makeMove col player board of
+        Success b ->
+            Just (col, b)
         _ ->
             Nothing
 
+
+{-| Update node children list. Node id is its index, so get it and update.
+    Array indices start form 0, node ids from 1
+-}
+updateNodeChildren : List ( Maybe Int, List Node ) -> Array Node -> Array Node
+updateNodeChildren processedNodes tree =
+    processedNodes
+        |> List.foldl
+            (\(mpid, children) t ->
+                case mpid of
+                    Just parentId ->
+                        let
+                            pidx =
+                                parentId - 1
+                        in
+                        case Array.get pidx t of
+                            Just n ->
+                                Array.set pidx { n | childNodes = children |> List.map .nodeId } t
+
+                            Nothing ->
+                                t
+
+                    Nothing ->
+                        t
+            )
+            tree
+
+
+{-| calculates max num of nodes in tree
+-}
+countNodesByDepth : Int -> Int
+countNodesByDepth d =
+    ((1 - (cols ^ (d + 1))) // (1 - cols)) - 1
+
+
+{-| calculate tree node id depending on the parent and depth
+-}
+getNodeIndex : Int -> Maybe Int -> Int
+getNodeIndex depth parentId =
+    if depth == 0 then
+        1
+    else
+        parentId
+            |> Maybe.withDefault 1
+            |> (\pid ->
+                let
+                    prevCount =
+                        countNodesByDepth (depth - 1)
+
+                    currCount =
+                        countNodesByDepth depth
+                in
+                -- total nodes before current depth nodes, plus add offset to the current node depending on the parent
+                -- offset by the parent depends on the parent id, for full tree it will produce squential ids, but
+                -- in case when the tree is not full it will produce ids that would be like for a full one.
+                currCount + ((pid - prevCount - 1) * cols + 1)
+            )
+
+
+{-- }
+logTree : Array Node -> Array Node
+logTree tree =
+    let
+        _ =
+            tree |> Array.map
+                (\n ->
+                    Debug.log "n"
+                        { d = n.depth
+                        , id = n.nodeId
+                        , p = n.player
+                        , cn = n.childNodes
+                        , pid = n.parentId
+                        , w = n.win
+                        }
+                )
+    in
+    tree
 --}

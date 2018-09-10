@@ -40,19 +40,44 @@ type alias Model =
     }
 
 
-type alias Node =
+type alias Move =
     { current : Player
     , next : Player
-    , depth : Int
     , maxDepth : Int
-    , rand : Int
+    }
+
+
+type alias Node =
+    { nodeId : Int
+    , player : Player
+    , board : Board
+    , win : Bool
+    , depth : Int
+    , parentId : Maybe Int
+    , childNodes : List Int
+    }
+
+
+defaultNode : Node
+defaultNode =
+    { nodeId = -1
+    , player = P1
+    , board = Array.empty
+    , win = False
+    , depth = -1
+    , parentId = Nothing
+    , childNodes = []
     }
 
 
 {-| Calculates range of possible combinations that lead to victory in Connect4
     For 6r×7c board size in Connect 4 that's 69 possibilities.
+
+    Win mask is a tuple of ints. First int is for the first 21 bits, and second
+    tuple for second 21 bits, where each bit represents one field of the
+    connect4 board. Specific win states will create specific int tuples.
 -}
-winMasks : List (List Char)
+winMasks : List (Int, Int)
 winMasks =
     (cols - 1)
         |> List.range 0
@@ -66,13 +91,17 @@ winMasks =
         |> List.map getWinPoints
         |> List.concat
         |> List.map
-            (\winPoints ->
-                winPoints
-                    |> List.foldl
-                        (\pt arr -> arr |> Array.set pt '1')
-                        (Array.initialize (cols * rows) (\_ -> '0'))
-                    |> Array.toList
-            )
+            (List.foldl calcMask (0, 0))
+
+
+{-| Calculates int mask from current board position
+-}
+calcMask : Int -> (Int, Int) -> (Int, Int)
+calcMask pt (lo, hi) =
+    if pt < 21 then
+        (lo + 2^pt, hi)
+    else
+        (lo, hi + 2^(pt - 21))
 
 
 {-| Generate 4 in row points to check from a specified point

@@ -2,6 +2,7 @@ module Connect4.Board exposing (..)
 
 import Connect4.Models exposing (..)
 import Array exposing (..)
+import Bitwise
 
 
 {-| Init our board
@@ -45,22 +46,24 @@ makeMove col player board =
 checkWin : Player -> Board -> Bool
 checkWin player board =
     let
-        boardState =
+        (moveLo, moveHi) =
             board
+                |> Array.indexedMap (\i v -> (i, v))
                 |> Array.foldl
-                    (\p l -> (if p == Played player then '1' else '0') :: l)
-                    []
+                    (\(idx, p) mask ->
+                        if p == Played player then
+                            calcMask idx mask
+                        else
+                            mask
+                    )
+                    (0, 0)
     in
     winMasks
         |> List.foldl
-            (\mask win ->
+            (\(mlo, mhi) win ->
                 if not win then
-                    boardState
-                        |> List.map2
-                            (\b1 b2 -> if b1 == '1' && b2 == '1' then '1' else '0')
-                            mask
-                        |> String.fromList
-                        |> \res -> res == (String.fromList mask)
+                    ( Bitwise.and mlo moveLo, Bitwise.and mhi moveHi )
+                        |> \( resLo, resHi ) -> resLo == mlo && resHi == mhi
                 else
                     win
             )
